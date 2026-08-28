@@ -14,9 +14,9 @@ import net.minecraft.text.Text;
 
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -51,6 +51,7 @@ public abstract class ChatHudMixin {
         cir.setReturnValue(chattabs$focused() ? cfg.focusedHeight : cfg.unfocusedHeight);
     }
 
+    @Unique
     private static boolean chattabs$focused() {
         MinecraftClient client = MinecraftClient.getInstance();
         return client != null && client.currentScreen instanceof ChatScreen;
@@ -71,17 +72,5 @@ public abstract class ChatHudMixin {
                                      boolean focused, CallbackInfo ci) {
         context.getMatrices().popMatrix();
         ChatTabBar.render(context, focused);
-    }
-
-    // Keep click/hover detection on chat links aligned with the moved window.
-
-    @ModifyVariable(method = "getTextStyleAt(DD)Lnet/minecraft/text/Style;", at = @At("HEAD"), ordinal = 0, argsOnly = true)
-    private double chattabs$unshiftX(double x) {
-        return x - ChatTabsConfig.get().offsetX;
-    }
-
-    @ModifyVariable(method = "getTextStyleAt(DD)Lnet/minecraft/text/Style;", at = @At("HEAD"), ordinal = 1, argsOnly = true)
-    private double chattabs$unshiftY(double y) {
-        return y - ChatTabsConfig.get().offsetY;
     }
 }
