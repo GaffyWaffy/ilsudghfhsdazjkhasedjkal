@@ -9,7 +9,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.hud.ChatHud;
 import net.minecraft.client.gui.hud.ChatHudLine;
 import net.minecraft.client.gui.hud.MessageIndicator;
-import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.network.message.MessageSignatureData;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
@@ -144,9 +143,10 @@ public final class TabManager {
     }
 
     private void playPing(MinecraftClient client) {
-        if (client.getSoundManager() == null) return;
-        client.getSoundManager().play(
-                PositionedSoundInstance.master(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 1.2F, 0.6F));
+        // Entity#playSound is far more stable across versions than the
+        // PositionedSoundInstance.master(...) overloads, which keep changing shape.
+        if (client.player == null) return;
+        client.player.playSound(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0F, 1.6F);
     }
 
     private int currentTick(MinecraftClient client) {
