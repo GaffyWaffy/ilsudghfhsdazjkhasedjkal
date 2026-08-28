@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "chattabs",
+  "version": "${version}",
+  "name": "Chat Tabs",
+  "description": "LabyMod-style multi-tab chat: per-tab filters, keyword highlighting, and a movable/resizable chat window.",
+  "authors": ["You"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.example.chattabs.ChatTabsClient"]
+  },
+  "mixins": [
+    { "config": "chattabs.mixins.json", "environment": "client" }
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
