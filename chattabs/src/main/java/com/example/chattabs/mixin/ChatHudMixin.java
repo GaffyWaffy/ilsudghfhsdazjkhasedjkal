@@ -5,6 +5,7 @@ import com.example.chattabs.config.ChatTabsConfig;
 import com.example.chattabs.gui.ChatTabBar;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.ChatHud;
 import net.minecraft.client.gui.hud.MessageIndicator;
@@ -59,18 +60,24 @@ public abstract class ChatHudMixin {
 
     // ---------------------------------------------------------------- position + tab strip
 
+    // 1.21.11 signature: render(DrawContext, TextRenderer, int, int, int, boolean, boolean).
+    // The two booleans are ignored - focus is derived from the current screen instead, so we
+    // don't depend on which of them means what.
+
     @Inject(method = "render", at = @At("HEAD"))
-    private void chattabs$shiftBefore(DrawContext context, int currentTick, int mouseX, int mouseY,
-                                      boolean focused, CallbackInfo ci) {
+    private void chattabs$shiftBefore(DrawContext context, TextRenderer textRenderer,
+                                      int currentTick, int mouseX, int mouseY,
+                                      boolean flagA, boolean flagB, CallbackInfo ci) {
         ChatTabsConfig cfg = ChatTabsConfig.get();
         context.getMatrices().pushMatrix();
         context.getMatrices().translate((float) cfg.offsetX, (float) cfg.offsetY);
     }
 
     @Inject(method = "render", at = @At("RETURN"))
-    private void chattabs$shiftAfter(DrawContext context, int currentTick, int mouseX, int mouseY,
-                                     boolean focused, CallbackInfo ci) {
+    private void chattabs$shiftAfter(DrawContext context, TextRenderer textRenderer,
+                                     int currentTick, int mouseX, int mouseY,
+                                     boolean flagA, boolean flagB, CallbackInfo ci) {
         context.getMatrices().popMatrix();
-        ChatTabBar.render(context, focused);
+        ChatTabBar.render(context, chattabs$focused());
     }
 }
