@@ -9,100 +9,116 @@ import com.example.chattabs.gui.TabEditScreen;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ChatScreen;
-import net.minecraft.client.gui.screen.Screen;
 
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/**
+ * All input is polled from GLFW inside render rather than hooked through mouseClicked /
+ * mouseScrolled / keyPressed. Those signatures changed in 1.21.9 (they now take Click and
+ * KeyInput records instead of raw coordinates) and have churned repeatedly across versions;
+ * polling keeps this file independent of them.
+ */
 @Mixin(ChatScreen.class)
-public abstract class ChatScreenMixin extends Screen {
+public abstract class ChatScreenMixin {
 
-    protected ChatScreenMixin() { super(null); }
+    @Unique private static boolean chattabs$leftDown;
+    @Unique private static boolean chattabs$rightDown;
+    @Unique private static boolean chattabs$middleDown;
+    @Unique private static boolean chattabs$tabDown;
 
-    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void chattabs$click(double mouseX, double mouseY, int button,
-                                CallbackInfoReturnable<Boolean> cir) {
-        ChatTabsConfig cfg = ChatTabsConfig.get();
+    @Inject(method = "render", at = @At("TAIL"))
+    private void chattabs$input(DrawContext context, int mouseX, int mouseY, float delta,
+                                CallbackInfo ci) {
         MinecraftClient client = MinecraftClient.getInstance();
+        long window = client.getWindow().getHandle();
 
-        if (ChatTabBar.isResizeHandle(mouseX, mouseY, true) && button == 0) {
+        boolean left = chattabs$button(window, GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        boolean right = chattabs$button(window, GLFW.GLFW_MOUSE_BUTTON_RIGHT);
+        boolean middle = chattabs$button(window, GLFW.GLFW_MOUSE_BUTTON_MIDDLE);
+
+        if (ChatTabBar.isDragging()) {
+            if (left) ChatTabBar.updateDrag(mouseX, mouseY);
+            else ChatTabBar.endDrag();
+        } else if (left && !chattabs$leftDown) {
+            chattabs$leftPress(client, mouseX, mouseY);
+        }
+
+        if (right && !chattabs$rightDown) {
+            int tab = ChatTabBar.tabAt(mouseX, mouseY, true);
+            if (tab >= 0) {
+                client.setScreen(new TabEditScreen(client.currentScreen,
+                        ChatTabsConfig.get().tabs.get(tab)));
+            }
+        }
+
+        if (middle && !chattabs$middleDown) {
+            int tab = ChatTabBar.tabAt(mouseX, mouseY, true);
+            ChatTabsConfig cfg = ChatTabsConfig.get();
+            if (tab >= 0 && cfg.tabs.size() > 1) {
+                cfg.tabs.remove(tab);
+                TabManager.get().setActiveTab(Math.min(cfg.activeTab, cfg.tabs.size() - 1));
+            }
+        }
+
+        boolean ctrl = chattabs$key(window, GLFW.GLFW_KEY_LEFT_CONTROL)
+                || chattabs$key(window, GLFW.GLFW_KEY_RIGHT_CONTROL)
+                || chattabs$key(window, GLFW.GLFW_KEY_LEFT_SUPER)
+                || chattabs$key(window, GLFW.GLFW_KEY_RIGHT_SUPER);
+        boolean tabKey = chattabs$key(window, GLFW.GLFW_KEY_TAB);
+        if (ctrl && tabKey && !chattabs$tabDown) {
+            boolean shift = chattabs$key(window, GLFW.GLFW_KEY_LEFT_SHIFT)
+                    || chattabs$key(window, GLFW.GLFW_KEY_RIGHT_SHIFT);
+            TabManager.get().cycleTab(shift ? -1 : 1);
+        }
+
+        chattabs$leftDown = left;
+        chattabs$rightDown = right;
+        chattabs$middleDown = middle;
+        chattabs$tabDown = tabKey;
+    }
+
+    @Unique
+    private void chattabs$leftPress(MinecraftClient client, int mouseX, int mouseY) {
+        ChatTabsConfig cfg = ChatTabsConfig.get();
+
+        if (ChatTabBar.isResizeHandle(mouseX, mouseY, true)) {
             ChatTabBar.beginDrag(ChatTabBar.Drag.RESIZE, mouseX, mouseY);
-            cir.setReturnValue(true);
             return;
         }
 
         int tab = ChatTabBar.tabAt(mouseX, mouseY, true);
         if (tab >= 0) {
-            if (button == 1) {
-                client.setScreen(new TabEditScreen(client.currentScreen, cfg.tabs.get(tab)));
-            } else if (button == 2) {
-                if (cfg.tabs.size() > 1) {
-                    cfg.tabs.remove(tab);
-                    TabManager.get().setActiveTab(Math.min(cfg.activeTab, cfg.tabs.size() - 1));
-                }
-            } else {
-                TabManager.get().setActiveTab(tab);
-            }
-            cir.setReturnValue(true);
+            TabManager.get().setActiveTab(tab);
             return;
         }
 
-        if (ChatTabBar.isPlusButton(mouseX, mouseY, true) && button == 0) {
+        if (ChatTabBar.isPlusButton(mouseX, mouseY, true)) {
             TabDefinition created = new TabDefinition("Tab " + (cfg.tabs.size() + 1));
             cfg.tabs.add(created);
             ChatTabsConfig.save();
             client.setScreen(new TabEditScreen(client.currentScreen, created));
-            cir.setReturnValue(true);
             return;
         }
 
-        if (ChatTabBar.isBarBackground(mouseX, mouseY, true) && button == 0) {
+        if (ChatTabBar.isBarBackground(mouseX, mouseY, true)) {
             ChatTabBar.beginDrag(ChatTabBar.Drag.MOVE, mouseX, mouseY);
-            cir.setReturnValue(true);
         }
     }
 
-    /**
-     * Drag state is polled here rather than through mouseDragged/mouseReleased so it does not
-     * depend on ChatScreen overriding those methods.
-     */
-    @Inject(method = "render", at = @At("TAIL"))
-    private void chattabs$pollDrag(DrawContext context, int mouseX, int mouseY, float delta,
-                                   CallbackInfo ci) {
-        if (!ChatTabBar.isDragging()) return;
-        long handle = MinecraftClient.getInstance().getWindow().getHandle();
-        if (GLFW.glfwGetMouseButton(handle, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS) {
-            ChatTabBar.updateDrag(mouseX, mouseY);
-        } else {
-            ChatTabBar.endDrag();
-        }
+    @Unique
+    private static boolean chattabs$button(long window, int button) {
+        return GLFW.glfwGetMouseButton(window, button) == GLFW.GLFW_PRESS;
     }
 
-    @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true)
-    private void chattabs$scroll(double mouseX, double mouseY, double horizontal, double vertical,
-                                 CallbackInfoReturnable<Boolean> cir) {
-        if (ChatTabBar.isBarBackground(mouseX, mouseY, true) || ChatTabBar.tabAt(mouseX, mouseY, true) >= 0) {
-            TabManager.get().cycleTab(vertical > 0 ? -1 : 1);
-            cir.setReturnValue(true);
-        }
-    }
-
-    @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
-    private void chattabs$keys(int keyCode, int scanCode, int modifiers,
-                               CallbackInfoReturnable<Boolean> cir) {
-        // Read the modifier bitmask GLFW already hands us rather than relying on
-        // Screen's static helpers, which moved in 1.21.11.
-        boolean ctrl = (modifiers & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
-        boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
-        if (keyCode == GLFW.GLFW_KEY_TAB && ctrl) {
-            TabManager.get().cycleTab(shift ? -1 : 1);
-            cir.setReturnValue(true);
-        }
+    @Unique
+    private static boolean chattabs$key(long window, int key) {
+        return GLFW.glfwGetKey(window, key) == GLFW.GLFW_PRESS;
     }
 
     /** Prepends the active tab's send prefix (e.g. "/msg Steve ") to outgoing messages. */
