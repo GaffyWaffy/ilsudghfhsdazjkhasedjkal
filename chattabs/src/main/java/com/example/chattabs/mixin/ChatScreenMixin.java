@@ -95,8 +95,12 @@ public abstract class ChatScreenMixin extends Screen {
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void chattabs$keys(int keyCode, int scanCode, int modifiers,
                                CallbackInfoReturnable<Boolean> cir) {
-        if (keyCode == GLFW.GLFW_KEY_TAB && Screen.hasControlDown()) {
-            TabManager.get().cycleTab(Screen.hasShiftDown() ? -1 : 1);
+        // Read the modifier bitmask GLFW already hands us rather than relying on
+        // Screen's static helpers, which moved in 1.21.11.
+        boolean ctrl = (modifiers & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
+        boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
+        if (keyCode == GLFW.GLFW_KEY_TAB && ctrl) {
+            TabManager.get().cycleTab(shift ? -1 : 1);
             cir.setReturnValue(true);
         }
     }
