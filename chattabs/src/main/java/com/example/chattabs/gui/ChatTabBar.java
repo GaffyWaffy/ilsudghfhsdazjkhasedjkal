@@ -100,7 +100,7 @@ public final class ChatTabBar {
             if (x + w > maxX && i > 0) break; // strip is full
             boolean active = i == cfg.activeTab;
             context.fill(x, y, x + w, y + h, active ? cfg.activeColor : cfg.inactiveColor);
-            if (active) context.drawBorder(x, y, w, h, cfg.borderColor);
+            if (active) outline(context, x, y, w, h, cfg.borderColor);
             int colour = !tab.enabled ? 0xFF808080
                     : active ? 0xFFFFFFFF
                     : (tab.unread > 0 ? 0xFFFFD24A : 0xFFB0B0B0);
@@ -118,8 +118,16 @@ public final class ChatTabBar {
             int hx = right() - HANDLE;
             int hy = top(true);
             context.fill(hx, hy, hx + HANDLE, hy + HANDLE, 0x88FFFFFF);
-            context.drawBorder(hx, hy, HANDLE, HANDLE, cfg.borderColor);
+            outline(context, hx, hy, HANDLE, HANDLE, cfg.borderColor);
         }
+    }
+
+    /** DrawContext#drawBorder was removed, so draw the four edges by hand. */
+    private static void outline(DrawContext context, int x, int y, int w, int h, int colour) {
+        context.fill(x, y, x + w, y + 1, colour);
+        context.fill(x, y + h - 1, x + w, y + h, colour);
+        context.fill(x, y + 1, x + 1, y + h - 1, colour);
+        context.fill(x + w - 1, y + 1, x + w, y + h - 1, colour);
     }
 
     // ------------------------------------------------------------------ hit testing
